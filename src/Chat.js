@@ -41,10 +41,13 @@ const Chat = ({ user, userToken }) => {
     socket.emit("init_user", user.id);
 
     const handleNewMessage = (newMsg) => {
+      console.log("test habdle new message --> ", newMsg);
+      // console.log("finally--> ", newMsg);
+      console.log("selectedChat--> ", selectedChat);
       if (selectedChat && newMsg.chat._id === selectedChat._id) {
         setMessages((prevMessages) => {
           if (!prevMessages.some((msg) => msg._id === newMsg._id)) {
-            markMessagesAsRead(selectedChat._id);
+            // markMessagesAsRead(selectedChat._id);
             return [...prevMessages, newMsg];
           }
           return prevMessages;
@@ -142,6 +145,7 @@ const Chat = ({ user, userToken }) => {
       const response = await axios.get("http://localhost:8080/api/chat", {
         headers: { Authorization: `Bearer ${userToken}` },
       });
+      console.log("responsexxx--> ", response.data);
       setChats(response.data);
     } catch (error) {
       console.error("Error fetching chats:", error);
@@ -157,7 +161,7 @@ const Chat = ({ user, userToken }) => {
         }
       );
       setMessages(response.data);
-      markMessagesAsRead(chatId);
+      // markMessagesAsRead(chatId);
     } catch (error) {
       console.error("Error fetching messages:", error);
     }
@@ -193,7 +197,6 @@ const Chat = ({ user, userToken }) => {
   };
 
   const updateChatWithNewMessage = (newMsg) => {
-    console.log("newMs--> ", newMsg);
     setChats((prevChats) =>
       prevChats.map((chat) =>
         chat?._id === newMsg?.chat?._id
@@ -242,6 +245,7 @@ const Chat = ({ user, userToken }) => {
       );
 
       const newMsg = response.data;
+      console.log("newMsg--> ", newMsg);
       setMessages((prev) => [...prev, newMsg]);
       setNewMessage("");
       clearFileSelection();
@@ -309,19 +313,22 @@ const Chat = ({ user, userToken }) => {
         </Typography>
         <List>
           {chats.map((chat) => {
-            const otherUser = chat.users.find((u) => u?.id !== user?.id);
+            const otherUser = chat.users.find((u) => u._id !== user.id);
+            console.log("otherUser--> ", otherUser, user.id);
             const unreadCount =
-              chat.unreadCounts.find((uc) => uc?.user === user?.id)?.count || 0;
-            const isOnline = onlineUsers.has(otherUser?.id);
+              chat.unreadCounts.find((uc) => uc.user === user.id)?.count || 0;
+              console.log("unreadCount--> ", unreadCount);
+            const isOnline = onlineUsers.has(otherUser._id);
+             console.log("unreadCount--> ", isOnline);
             return (
               <ListItem
                 key={chat._id}
                 button
                 onClick={() => {
                   setSelectedChat(chat);
-                  fetchMessages(chat?._id);
+                  fetchMessages(chat._id);
                 }}
-                selected={selectedChat && selectedChat?._id === chat?._id}
+                selected={selectedChat && selectedChat._id === chat._id}
               >
                 <ListItemAvatar>
                   <Badge
@@ -334,7 +341,7 @@ const Chat = ({ user, userToken }) => {
                     }}
                   >
                     <Avatar
-                      src={otherUser?.basicInfo?.profilePic || ""}
+                      src={otherUser.basicInfo?.profilePic || ""}
                       sx={{
                         border: isOnline ? "2px solid green" : "none",
                       }}
@@ -342,9 +349,7 @@ const Chat = ({ user, userToken }) => {
                   </Badge>
                 </ListItemAvatar>
                 <ListItemText
-                  primary={
-                    otherUser?.basicInfo?.displayName || otherUser?.email
-                  }
+                  primary={otherUser.basicInfo?.displayName || otherUser.email}
                   secondary={
                     <>
                       <Typography
@@ -352,7 +357,7 @@ const Chat = ({ user, userToken }) => {
                         variant="body2"
                         color="textSecondary"
                       >
-                        {chat?.lastMessage?.content || "No messages yet"}
+                        {chat.lastMessage?.content || "No messages yet"}
                       </Typography>
                       {isOnline && (
                         <Typography
@@ -372,6 +377,7 @@ const Chat = ({ user, userToken }) => {
           })}
         </List>
       </Paper>
+
       <Box flexGrow={1} display="flex" flexDirection="column" p={2}>
         {selectedChat ? (
           <>
