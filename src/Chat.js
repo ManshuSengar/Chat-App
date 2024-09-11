@@ -23,7 +23,7 @@ import {
   Close as CloseIcon,
 } from "@mui/icons-material";
 
-const socket = io("http://localhost:8080"); // Adjust the URL as needed
+const socket = io("http://3.110.252.174:8080"); // Adjust the URL as needed
 
 const Chat = ({ user, userToken }) => {
   const [chats, setChats] = useState([]);
@@ -40,21 +40,10 @@ const Chat = ({ user, userToken }) => {
     console.log("user--> ", user);
     socket.emit("init_user", user.id);
 
-    const handleNewMessage = (newMsg) => {
-      if (selectedChat && newMsg.chat._id === selectedChat._id) {
-        setMessages((prevMessages) => {
-          if (!prevMessages.some((msg) => msg._id === newMsg._id)) {
-            markMessagesAsRead(selectedChat._id);
-            return [...prevMessages, newMsg];
-          }
-          return prevMessages;
-        });
-      }
-      console.log("enter first time--> ", newMsg);
-      updateChatWithNewMessage(newMsg);
-    };
+   
 
     const handleUnreadCount = ({ chatId, unreadCount }) => {
+      console.log("enter count--> ");
       updateUnreadCount(chatId, unreadCount);
     };
 
@@ -76,8 +65,24 @@ const Chat = ({ user, userToken }) => {
         return newSet;
       });
     };
+     const handleNewMessage = (newMsg) => {
+       console.log("test habdle new message --> ", newMsg);
+       // console.log("finally--> ", newMsg);
+       console.log("selectedChat--> ", selectedChat);
+       if (selectedChat && newMsg.chat._id === selectedChat._id) {
+         setMessages((prevMessages) => {
+           if (!prevMessages.some((msg) => msg._id === newMsg._id)) {
+             // markMessagesAsRead(selectedChat._id);
+             return [...prevMessages, newMsg];
+           }
+           return prevMessages;
+         });
+       }
+       console.log("enter first time--> ", newMsg);
+       updateChatWithNewMessage(newMsg);
+     };
 
-    socket.on("new_msg_received", handleNewMessage);
+    // socket.on("new_msg_received", handleNewMessage);
     socket.on("update_unread_count", handleUnreadCount);
     socket.on("messages_marked_read", handleMessagesMarkedRead);
     socket.on("getUserOnline", handleUserOnline);
@@ -91,6 +96,46 @@ const Chat = ({ user, userToken }) => {
       socket.on("getUserOffline", handleUserOffline);
     };
   }, [selectedChat, user.id]);
+
+  const updateChatWithNewMessage = (newMsg) => {
+    setChats((prevChats) =>
+      prevChats.map((chat) =>
+        chat._id === newMsg.chat._id
+          ? {
+              ...chat,
+              lastMessage: newMsg,
+              unreadCounts: chat.unreadCounts.map((uc) =>
+                uc.user === user.id ? { ...uc, count: uc.count + 1 } : uc
+              ),
+            }
+          : chat
+      )
+    );
+  };
+
+useEffect(() => {
+  console.log("Initializing socket connection for user:", user.id);
+
+  const handleNewMessage = (newMsg) => {
+    debugger
+    console.log("Received new message:", newMsg);
+    if (selectedChat && newMsg.chat === selectedChat._id) {
+      setMessages((prevMessages) => {
+        if (!prevMessages.some((msg) => msg._id === newMsg._id)) {
+          return [...prevMessages, newMsg];
+        }
+        return prevMessages;
+      });
+    }
+    updateChatWithNewMessage(newMsg);
+  };
+  
+  socket.on("new_msg_received", handleNewMessage);
+
+  return () => {
+    socket.off("new_msg_received", handleNewMessage);
+  };
+}, [selectedChat, user.id]);
 
   useEffect(() => {
     fetchChats();
@@ -139,9 +184,10 @@ const Chat = ({ user, userToken }) => {
 
   const fetchChats = async () => {
     try {
-      const response = await axios.get("http://localhost:8080/api/chat", {
+      const response = await axios.get("http://3.110.252.174:8080/api/chat", {
         headers: { Authorization: `Bearer ${userToken}` },
       });
+      console.log("responsexxx--> ", response.data);
       setChats(response.data);
     } catch (error) {
       console.error("Error fetching chats:", error);
@@ -151,13 +197,13 @@ const Chat = ({ user, userToken }) => {
   const fetchMessages = async (chatId) => {
     try {
       const response = await axios.get(
-        `http://localhost:8080/api/message/${chatId}`,
+        `http://3.110.252.174:8080/api/message/${chatId}`,
         {
           headers: { Authorization: `Bearer ${userToken}` },
         }
       );
       setMessages(response.data);
-      markMessagesAsRead(chatId);
+      // markMessagesAsRead(chatId);
     } catch (error) {
       console.error("Error fetching messages:", error);
     }
@@ -166,7 +212,7 @@ const Chat = ({ user, userToken }) => {
   const markMessagesAsRead = async (chatId) => {
     try {
       await axios.post(
-        `http://localhost:8080/api/message/read/${chatId}`,
+        `http://3.110.252.174:8080/api/message/read/${chatId}`,
         {},
         { headers: { Authorization: `Bearer ${userToken}` } }
       );
@@ -192,22 +238,21 @@ const Chat = ({ user, userToken }) => {
     );
   };
 
-  const updateChatWithNewMessage = (newMsg) => {
-    console.log("newMs--> ", newMsg);
-    setChats((prevChats) =>
-      prevChats.map((chat) =>
-        chat?._id === newMsg?.chat?._id
-          ? {
-              ...chat,
-              lastMessage: newMsg,
-              unreadCounts: chat.unreadCounts.map((uc) =>
-                uc.user === user.id ? { ...uc, count: uc.count + 1 } : uc
-              ),
-            }
-          : chat
-      )
-    );
-  };
+  // const updateChatWithNewMessage = (newMsg) => {
+  //   setChats((prevChats) =>
+  //     prevChats.map((chat) =>
+  //       chat?._id === newMsg?.chat?._id
+  //         ? {
+  //             ...chat,
+  //             lastMessage: newMsg,
+  //             unreadCounts: chat.unreadCounts.map((uc) =>
+  //               uc.user === user.id ? { ...uc, count: uc.count + 1 } : uc
+  //             ),
+  //           }
+  //         : chat
+  //     )
+  //   );
+  // };
 
   const updateMessageReadStatus = (chatId) => {
     setMessages((prevMessages) =>
@@ -231,7 +276,7 @@ const Chat = ({ user, userToken }) => {
       }
 
       const response = await axios.post(
-        "http://localhost:8080/api/message",
+        "http://3.110.252.174:8080/api/message",
         formData,
         {
           headers: {
@@ -242,6 +287,7 @@ const Chat = ({ user, userToken }) => {
       );
 
       const newMsg = response.data;
+      console.log("newMsg--> ", newMsg);
       setMessages((prev) => [...prev, newMsg]);
       setNewMessage("");
       clearFileSelection();
@@ -309,19 +355,22 @@ const Chat = ({ user, userToken }) => {
         </Typography>
         <List>
           {chats.map((chat) => {
-            const otherUser = chat.users.find((u) => u?.id !== user?.id);
+            const otherUser = chat.users.find((u) => u._id !== user.id);
+            console.log("otherUser--> ", otherUser, user.id);
             const unreadCount =
-              chat.unreadCounts.find((uc) => uc?.user === user?.id)?.count || 0;
-            const isOnline = onlineUsers.has(otherUser?.id);
+              chat.unreadCounts.find((uc) => uc.user === user.id)?.count || 0;
+              console.log("unreadCount--> ", unreadCount);
+            const isOnline = onlineUsers.has(otherUser._id);
+             console.log("unreadCount--> ", isOnline);
             return (
               <ListItem
                 key={chat._id}
                 button
                 onClick={() => {
                   setSelectedChat(chat);
-                  fetchMessages(chat?._id);
+                  fetchMessages(chat._id);
                 }}
-                selected={selectedChat && selectedChat?._id === chat?._id}
+                selected={selectedChat && selectedChat._id === chat._id}
               >
                 <ListItemAvatar>
                   <Badge
@@ -334,7 +383,7 @@ const Chat = ({ user, userToken }) => {
                     }}
                   >
                     <Avatar
-                      src={otherUser?.basicInfo?.profilePic || ""}
+                      src={otherUser.basicInfo?.profilePic || ""}
                       sx={{
                         border: isOnline ? "2px solid green" : "none",
                       }}
@@ -342,9 +391,7 @@ const Chat = ({ user, userToken }) => {
                   </Badge>
                 </ListItemAvatar>
                 <ListItemText
-                  primary={
-                    otherUser?.basicInfo?.displayName || otherUser?.email
-                  }
+                  primary={otherUser.basicInfo?.displayName || otherUser.email}
                   secondary={
                     <>
                       <Typography
@@ -352,7 +399,7 @@ const Chat = ({ user, userToken }) => {
                         variant="body2"
                         color="textSecondary"
                       >
-                        {chat?.lastMessage?.content || "No messages yet"}
+                        {chat.lastMessage?.content || "No messages yet"}
                       </Typography>
                       {isOnline && (
                         <Typography
@@ -372,6 +419,7 @@ const Chat = ({ user, userToken }) => {
           })}
         </List>
       </Paper>
+
       <Box flexGrow={1} display="flex" flexDirection="column" p={2}>
         {selectedChat ? (
           <>
