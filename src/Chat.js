@@ -23,7 +23,7 @@ import {
   Close as CloseIcon,
 } from "@mui/icons-material";
 
-const socket = io("http://localhost:8080"); // Adjust the URL as needed
+const socket = io("http://3.110.252.174:8080"); // Adjust the URL as needed
 
 const Chat = ({ user, userToken }) => {
   const [chats, setChats] = useState([]);
@@ -184,7 +184,7 @@ useEffect(() => {
 
   const fetchChats = async () => {
     try {
-      const response = await axios.get("http://localhost:8080/api/chat", {
+      const response = await axios.get("http://3.110.252.174:8080/api/chat", {
         headers: { Authorization: `Bearer ${userToken}` },
       });
       console.log("responsexxx--> ", response.data);
@@ -197,7 +197,7 @@ useEffect(() => {
   const fetchMessages = async (chatId) => {
     try {
       const response = await axios.get(
-        `http://localhost:8080/api/message/${chatId}`,
+        `http://3.110.252.174:8080/api/message/${chatId}`,
         {
           headers: { Authorization: `Bearer ${userToken}` },
         }
@@ -212,7 +212,7 @@ useEffect(() => {
   const markMessagesAsRead = async (chatId) => {
     try {
       await axios.post(
-        `http://localhost:8080/api/message/read/${chatId}`,
+        `http://3.110.252.174:8080/api/message/read/${chatId}`,
         {},
         { headers: { Authorization: `Bearer ${userToken}` } }
       );
@@ -276,7 +276,7 @@ useEffect(() => {
       }
 
       const response = await axios.post(
-        "http://localhost:8080/api/message",
+        "http://3.110.252.174:8080/api/message",
         formData,
         {
           headers: {
