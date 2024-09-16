@@ -9,7 +9,7 @@ const Login = ({ setUser, setUserToken }) => {
   const handleLogin = async (phoneNumber) => {
     try {
       console.log("phoneNumber", phoneNumber);
-      const response = await axios.post("http://3.110.252.174:8080/api/login", {
+      const response = await axios.post("http://localhost:8080/api/login", {
         phoneNo: phoneNumber,
       });
       console.log("response--> ", response);
@@ -25,7 +25,7 @@ const Login = ({ setUser, setUserToken }) => {
   const handleVerifyOtp = async () => {
     try {
       const response = await axios.post(
-        "http://3.110.252.174:8080/api/verify-otp",
+        "http://localhost:8080/api/verify-otp",
         {
           phoneNo: phoneNumber,
           otp,

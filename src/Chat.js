@@ -23,7 +23,7 @@ import {
   Close as CloseIcon,
 } from "@mui/icons-material";
 
-const socket = io("http://3.110.252.174:8080"); // Adjust the URL as needed
+const socket = io("http://localhost:8080"); // Adjust the URL as needed
 
 const Chat = ({ user, userToken }) => {
   const [chats, setChats] = useState([]);
@@ -36,11 +36,60 @@ const Chat = ({ user, userToken }) => {
   const messagesEndRef = useRef(null);
   const [onlineUsers, setOnlineUsers] = useState(new Set());
 
+  const updateUnreadCount = useCallback(
+    (chatId, newCount) => {
+      setChats((prevChats) =>
+        prevChats.map((chat) =>
+          chat._id === chatId
+            ? {
+                ...chat,
+                unreadCounts: chat.unreadCounts.map((uc) =>
+                  uc.user === user.id
+                    ? {
+                        ...uc,
+                        count:
+                          typeof newCount === "function"
+                            ? newCount(uc.count)
+                            : newCount,
+                      }
+                    : uc
+                ),
+              }
+            : chat
+        )
+      );
+    },
+    [user.id]
+  );
+
+  useEffect(() => {
+    console.log("Initializing socket connection for user1:", user.id);
+
+    socket.emit("init_user", user.id);
+    const handleChatsLoaded = (fetchedChats) => {
+      console.log("Chats loaded:", fetchedChats);
+      setChats(fetchedChats);
+    };
+
+    const handleChatListUpdated = (newChat) => {
+      setChats((prevChats) => [newChat, ...prevChats]);
+    };
+
+    socket.on("chats_fetched", handleChatsLoaded);
+    socket.on("chat_list_updated", handleChatListUpdated);
+
+    // Fetch chats using socket
+    socket.emit("fetch_chats", user.id);
+
+    return () => {
+      socket.off("chats_fetched", handleChatsLoaded);
+      socket.off("chat_list_updated", handleChatListUpdated);
+    };
+  }, [user.id]);
+
   useEffect(() => {
     console.log("user--> ", user);
     socket.emit("init_user", user.id);
-
-   
 
     const handleUnreadCount = ({ chatId, unreadCount }) => {
       console.log("enter count--> ");
@@ -65,22 +114,25 @@ const Chat = ({ user, userToken }) => {
         return newSet;
       });
     };
-     const handleNewMessage = (newMsg) => {
-       console.log("test habdle new message --> ", newMsg);
-       // console.log("finally--> ", newMsg);
-       console.log("selectedChat--> ", selectedChat);
-       if (selectedChat && newMsg.chat._id === selectedChat._id) {
-         setMessages((prevMessages) => {
-           if (!prevMessages.some((msg) => msg._id === newMsg._id)) {
-             // markMessagesAsRead(selectedChat._id);
-             return [...prevMessages, newMsg];
-           }
-           return prevMessages;
-         });
-       }
-       console.log("enter first time--> ", newMsg);
-       updateChatWithNewMessage(newMsg);
-     };
+    const handleNewMessage = (newMsg) => {
+      console.log("test habdle new message --> ", newMsg);
+      // console.log("finally--> ", newMsg);
+      console.log("selectedChat--> ", selectedChat);
+      if (selectedChat && newMsg.chat._id === selectedChat._id) {
+        setMessages((prevMessages) => {
+          if (!prevMessages.some((msg) => msg._id === newMsg._id)) {
+            // markMessagesAsRead(selectedChat._id);
+            return [...prevMessages, newMsg];
+          }
+          return prevMessages;
+        });
+        markMessagesAsRead(selectedChat._id);
+      } else {
+        updateUnreadCount(newMsg.chat, (prev) => prev + 1);
+      }
+      console.log("enter first time--> ", newMsg);
+      updateChatWithNewMessage(newMsg);
+    };
 
     // socket.on("new_msg_received", handleNewMessage);
     socket.on("update_unread_count", handleUnreadCount);
@@ -113,33 +165,51 @@ const Chat = ({ user, userToken }) => {
     );
   };
 
-useEffect(() => {
-  console.log("Initializing socket connection for user:", user.id);
-
-  const handleNewMessage = (newMsg) => {
-    debugger
-    console.log("Received new message:", newMsg);
-    if (selectedChat && newMsg.chat === selectedChat._id) {
-      setMessages((prevMessages) => {
-        if (!prevMessages.some((msg) => msg._id === newMsg._id)) {
-          return [...prevMessages, newMsg];
-        }
-        return prevMessages;
-      });
-    }
-    updateChatWithNewMessage(newMsg);
-  };
-  
-  socket.on("new_msg_received", handleNewMessage);
-
-  return () => {
-    socket.off("new_msg_received", handleNewMessage);
-  };
-}, [selectedChat, user.id]);
-
   useEffect(() => {
-    fetchChats();
-  }, [userToken]);
+    console.log("Initializing socket connection for user:", user.id);
+
+    const handleNewMessage = (newMsg) => {
+      console.log("Received new message:", newMsg);
+      if (selectedChat && newMsg.chat === selectedChat._id) {
+        setMessages((prevMessages) => {
+          if (!prevMessages.some((msg) => msg._id === newMsg._id)) {
+            return [...prevMessages, newMsg];
+          }
+          return prevMessages;
+        });
+        // Mark messages as read if the chat is currently open
+        markMessagesAsRead(selectedChat._id);
+      } else {
+        // Update unread count for other chats
+        updateUnreadCount(newMsg.chat, (prev) => prev + 1);
+      }
+      updateChatWithNewMessage(newMsg);
+    };
+
+    const handleUpdateUnreadCount = ({ chatId, unreadCount }) => {
+      updateUnreadCount(chatId, unreadCount);
+    };
+
+    const handleMessagesMarkedRead = ({ chatId, userId }) => {
+      if (userId !== user.id) {
+        updateMessageReadStatus(chatId);
+      }
+    };
+
+    socket.on("new_msg_received", handleNewMessage);
+    socket.on("update_unread_count", handleUpdateUnreadCount);
+    socket.on("messages_marked_read", handleMessagesMarkedRead);
+
+    return () => {
+      socket.off("new_msg_received", handleNewMessage);
+      socket.off("update_unread_count", handleUpdateUnreadCount);
+      socket.off("messages_marked_read", handleMessagesMarkedRead);
+    };
+  }, [selectedChat, user.id]);
+
+  // useEffect(() => {
+  //   fetchChats();
+  // }, [userToken]);
 
   useEffect(() => {
     scrollToBottom();
@@ -182,22 +252,22 @@ useEffect(() => {
   //   };
   // }, []);
 
-  const fetchChats = async () => {
-    try {
-      const response = await axios.get("http://3.110.252.174:8080/api/chat", {
-        headers: { Authorization: `Bearer ${userToken}` },
-      });
-      console.log("responsexxx--> ", response.data);
-      setChats(response.data);
-    } catch (error) {
-      console.error("Error fetching chats:", error);
-    }
-  };
+  // const fetchChats = async () => {
+  //   try {
+  //     const response = await axios.get("http://localhost:8080/api/chat", {
+  //       headers: { Authorization: `Bearer ${userToken}` },
+  //     });
+  //     console.log("responsexxx--> ", response.data);
+  //     setChats(response.data);
+  //   } catch (error) {
+  //     console.error("Error fetching chats:", error);
+  //   }
+  // };
 
   const fetchMessages = async (chatId) => {
     try {
       const response = await axios.get(
-        `http://3.110.252.174:8080/api/message/${chatId}`,
+        `http://localhost:8080/api/message/${chatId}`,
         {
           headers: { Authorization: `Bearer ${userToken}` },
         }
@@ -209,34 +279,19 @@ useEffect(() => {
     }
   };
 
-  const markMessagesAsRead = async (chatId) => {
-    try {
-      await axios.post(
-        `http://3.110.252.174:8080/api/message/read/${chatId}`,
-        {},
-        { headers: { Authorization: `Bearer ${userToken}` } }
-      );
-      socket.emit("mark_messages_read", { chatId, userId: user.id });
-      updateUnreadCount(chatId, 0);
-    } catch (error) {
-      console.error("Error marking messages as read:", error);
-    }
-  };
-
-  const updateUnreadCount = (chatId, count) => {
-    setChats((prevChats) =>
-      prevChats.map((chat) =>
-        chat._id === chatId
-          ? {
-              ...chat,
-              unreadCounts: chat.unreadCounts.map((uc) =>
-                uc.user === user.id ? { ...uc, count } : uc
-              ),
-            }
-          : chat
-      )
-    );
-  };
+  // const markMessagesAsRead = async (chatId) => {
+  //   try {
+  //     await axios.post(
+  //       `http://localhost:8080/api/message/read/${chatId}`,
+  //       {},
+  //       { headers: { Authorization: `Bearer ${userToken}` } }
+  //     );
+  //     socket.emit("mark_messages_read", { chatId, userId: user.id });
+  //     updateUnreadCount(chatId, 0);
+  //   } catch (error) {
+  //     console.error("Error marking messages as read:", error);
+  //   }
+  // };
 
   // const updateChatWithNewMessage = (newMsg) => {
   //   setChats((prevChats) =>
@@ -254,15 +309,26 @@ useEffect(() => {
   //   );
   // };
 
-  const updateMessageReadStatus = (chatId) => {
-    setMessages((prevMessages) =>
-      prevMessages.map((msg) =>
-        msg.chat === chatId && !msg.readBy.includes(user.id)
-          ? { ...msg, readBy: [...msg.readBy, user.id] }
-          : msg
-      )
-    );
-  };
+  const markMessagesAsRead = useCallback(
+    (chatId) => {
+      socket.emit("mark_messages_read", { chatId, userId: user.id });
+      updateUnreadCount(chatId, 0);
+    },
+    [user.id, updateUnreadCount]
+  );
+  const updateMessageReadStatus = useCallback(
+    (chatId) => {
+      setMessages((prevMessages) =>
+        prevMessages.map((msg) =>
+          msg.chat === chatId && !msg.readBy.includes(user.id)
+            ? { ...msg, readBy: [...msg.readBy, user.id] }
+            : msg
+        )
+      );
+    },
+    [user.id]
+  );
+
   const sendMessage = useCallback(async () => {
     if ((!newMessage.trim() && !file) || !selectedChat) return;
 
@@ -276,7 +342,7 @@ useEffect(() => {
       }
 
       const response = await axios.post(
-        "http://3.110.252.174:8080/api/message",
+        "http://localhost:8080/api/message",
         formData,
         {
           headers: {
@@ -293,6 +359,7 @@ useEffect(() => {
       clearFileSelection();
       socket.emit("new_msg_sent", newMsg);
       updateChatWithNewMessage(newMsg);
+      markMessagesAsRead(selectedChat._id);
     } catch (error) {
       console.error("Error sending message:", error);
     } finally {
@@ -356,12 +423,10 @@ useEffect(() => {
         <List>
           {chats.map((chat) => {
             const otherUser = chat.users.find((u) => u._id !== user.id);
-            console.log("otherUser--> ", otherUser, user.id);
-            const unreadCount =
-              chat.unreadCounts.find((uc) => uc.user === user.id)?.count || 0;
-              console.log("unreadCount--> ", unreadCount);
+            const unreadCount = chat.unreadCounts.find((uc) => uc.user === user.id)?.count || 0;
+            console.log("unreadCount-->10 ",unreadCount);
             const isOnline = onlineUsers.has(otherUser._id);
-             console.log("unreadCount--> ", isOnline);
+            console.log("unreadCount--> ", isOnline);
             return (
               <ListItem
                 key={chat._id}
