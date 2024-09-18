@@ -36,31 +36,24 @@ const Chat = ({ user, userToken }) => {
   const messagesEndRef = useRef(null);
   const [onlineUsers, setOnlineUsers] = useState(new Set());
 
-  const updateUnreadCount = useCallback(
-    (chatId, newCount) => {
-      setChats((prevChats) =>
-        prevChats.map((chat) =>
-          chat._id === chatId
-            ? {
-                ...chat,
-                unreadCounts: chat.unreadCounts.map((uc) =>
-                  uc.user === user.id
-                    ? {
-                        ...uc,
-                        count:
-                          typeof newCount === "function"
-                            ? newCount(uc.count)
-                            : newCount,
-                      }
-                    : uc
-                ),
-              }
-            : chat
-        )
-      );
-    },
-    [user.id]
-  );
+ const updateUnreadCount = useCallback(
+   (chatId, newCount) => {
+     console.log(`Updating unread count for chat ${chatId} to ${newCount}`);
+     setChats((prevChats) =>
+       prevChats.map((chat) =>
+         chat._id === chatId
+           ? {
+               ...chat,
+               unreadCounts: chat.unreadCounts.map((uc) =>
+                 uc.user === user.id ? { ...uc, count: newCount } : uc
+               ),
+             }
+           : chat
+       )
+     );
+   },
+   [user.id]
+ );
 
   useEffect(() => {
     console.log("Initializing socket connection for user1:", user.id);
@@ -96,11 +89,11 @@ const Chat = ({ user, userToken }) => {
       updateUnreadCount(chatId, unreadCount);
     };
 
-    const handleMessagesMarkedRead = ({ chatId, userId }) => {
-      if (userId !== user.id) {
-        updateMessageReadStatus(chatId);
-      }
-    };
+  const handleMessagesMarkedRead = ({ chatId, userId }) => {
+    if (userId !== user.id) {
+      updateMessageReadStatus(chatId);
+    }
+  };
 
     const handleUserOnline = (userId) => {
       console.log("eneter--> ", userId);
@@ -114,25 +107,7 @@ const Chat = ({ user, userToken }) => {
         return newSet;
       });
     };
-    const handleNewMessage = (newMsg) => {
-      console.log("test habdle new message --> ", newMsg);
-      // console.log("finally--> ", newMsg);
-      console.log("selectedChat--> ", selectedChat);
-      if (selectedChat && newMsg.chat._id === selectedChat._id) {
-        setMessages((prevMessages) => {
-          if (!prevMessages.some((msg) => msg._id === newMsg._id)) {
-            // markMessagesAsRead(selectedChat._id);
-            return [...prevMessages, newMsg];
-          }
-          return prevMessages;
-        });
-        markMessagesAsRead(selectedChat._id);
-      } else {
-        updateUnreadCount(newMsg.chat, (prev) => prev + 1);
-      }
-      console.log("enter first time--> ", newMsg);
-      updateChatWithNewMessage(newMsg);
-    };
+    
 
     // socket.on("new_msg_received", handleNewMessage);
     socket.on("update_unread_count", handleUnreadCount);
@@ -141,7 +116,7 @@ const Chat = ({ user, userToken }) => {
     socket.on("getUserOffline", handleUserOffline);
 
     return () => {
-      socket.off("new_msg_received", handleNewMessage);
+      // socket.off("new_msg_received", handleNewMessage);
       socket.off("update_unread_count", handleUnreadCount);
       socket.off("messages_marked_read", handleMessagesMarkedRead);
       socket.on("getUserOnline", handleUserOnline);
@@ -149,27 +124,30 @@ const Chat = ({ user, userToken }) => {
     };
   }, [selectedChat, user.id]);
 
-  const updateChatWithNewMessage = (newMsg) => {
-    setChats((prevChats) =>
-      prevChats.map((chat) =>
-        chat._id === newMsg.chat._id
-          ? {
-              ...chat,
-              lastMessage: newMsg,
-              unreadCounts: chat.unreadCounts.map((uc) =>
-                uc.user === user.id ? { ...uc, count: uc.count + 1 } : uc
-              ),
-            }
-          : chat
-      )
-    );
-  };
+  const updateChatWithNewMessage = useCallback(
+    (newMsg) => {
+      setChats((prevChats) =>
+        prevChats.map((chat) =>
+          chat._id === newMsg.chat._id
+            ? {
+                ...chat,
+                lastMessage: newMsg,
+                // unreadCounts: chat.unreadCounts.map((uc) =>
+                //   uc.user === user.id ? { ...uc, count: uc.count + 1 } : uc
+                // ),
+              }
+            : chat
+        )
+      );
+    },
+    [user.id]
+  );
 
   useEffect(() => {
     console.log("Initializing socket connection for user:", user.id);
 
     const handleNewMessage = (newMsg) => {
-      console.log("Received new message:", newMsg);
+      console.log("Received new message:", newMsg, selectedChat);
       if (selectedChat && newMsg.chat === selectedChat._id) {
         setMessages((prevMessages) => {
           if (!prevMessages.some((msg) => msg._id === newMsg._id)) {
@@ -177,24 +155,22 @@ const Chat = ({ user, userToken }) => {
           }
           return prevMessages;
         });
-        // Mark messages as read if the chat is currently open
+         console.log("Received444--> :", newMsg, selectedChat);
         markMessagesAsRead(selectedChat._id);
       } else {
-        // Update unread count for other chats
-        updateUnreadCount(newMsg.chat, (prev) => prev + 1);
-      }
-      updateChatWithNewMessage(newMsg);
-    };
-
-    const handleUpdateUnreadCount = ({ chatId, unreadCount }) => {
-      updateUnreadCount(chatId, unreadCount);
-    };
-
-    const handleMessagesMarkedRead = ({ chatId, userId }) => {
-      if (userId !== user.id) {
-        updateMessageReadStatus(chatId);
+        updateChatWithNewMessage(newMsg);
       }
     };
+
+   const handleUpdateUnreadCount = ({ chatId, unreadCount }) => {
+     updateUnreadCount(chatId, unreadCount);
+   };
+
+     const handleMessagesMarkedRead = ({ chatId, userId }) => {
+       if (userId !== user.id) {
+         updateMessageReadStatus(chatId);
+       }
+     };
 
     socket.on("new_msg_received", handleNewMessage);
     socket.on("update_unread_count", handleUpdateUnreadCount);
@@ -312,7 +288,7 @@ const Chat = ({ user, userToken }) => {
   const markMessagesAsRead = useCallback(
     (chatId) => {
       socket.emit("mark_messages_read", { chatId, userId: user.id });
-      updateUnreadCount(chatId, 0);
+      // updateUnreadCount(chatId, 0);
     },
     [user.id, updateUnreadCount]
   );
